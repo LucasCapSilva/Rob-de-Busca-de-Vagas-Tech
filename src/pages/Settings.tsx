@@ -8,6 +8,10 @@ const Settings = () => {
   const [formData, setFormData] = React.useState(whiteLabelConfig);
   const [saved, setSaved] = React.useState(false);
 
+  React.useEffect(() => {
+    setFormData(whiteLabelConfig);
+  }, [whiteLabelConfig]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setWhiteLabelConfig(formData);
@@ -34,7 +38,7 @@ const Settings = () => {
     <div className="max-w-2xl mx-auto py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Configurações da Plataforma</h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-2">Personalize a aparência do sistema (White-label)</p>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">Personalize o nome e a cor principal da plataforma</p>
       </div>
 
       <motion.form 
@@ -92,16 +96,13 @@ const Settings = () => {
           </div>
         </div>
 
-        <div className="pt-6 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            As alterações são salvas localmente no seu navegador.
-          </p>
+        <div className="pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
           <button 
             type="submit"
             className="px-6 py-3 bg-[var(--color-primary)] hover:opacity-90 text-white rounded-xl font-bold flex items-center gap-2 transition-all shadow-md shadow-[var(--color-primary)]/20"
           >
             <Save size={18} />
-            {saved ? 'Salvo!' : 'Salvar Alterações'}
+            {saved ? 'Alterações Salvas' : 'Salvar Alterações'}
           </button>
         </div>
       </motion.form>

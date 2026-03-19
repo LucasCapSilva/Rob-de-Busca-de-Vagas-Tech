@@ -1,8 +1,20 @@
-// @ts-nocheck
+declare global {
+  interface PromiseWithResolversResult<T> {
+    promise: Promise<T>;
+    resolve: (value: T | PromiseLike<T>) => void;
+    reject: (reason?: unknown) => void;
+  }
+
+  interface PromiseConstructor {
+    withResolvers?<T>(): PromiseWithResolversResult<T>;
+  }
+}
+
 if (typeof Promise.withResolvers === 'undefined') {
-  Promise.withResolvers = function () {
-    let resolve, reject;
-    const promise = new Promise((res, rej) => {
+  Promise.withResolvers = function <T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+    const promise = new Promise<T>((res, rej) => {
       resolve = res;
       reject = rej;
     });

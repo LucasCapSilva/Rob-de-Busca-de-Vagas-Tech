@@ -3,16 +3,22 @@ import { persist } from 'zustand/middleware';
 import type { CandidateData } from '../utils/resumeAnalyzer';
 import type { JobMatch } from '../utils/jobMatcher';
 
+export interface WhiteLabelConfig {
+  platformName: string;
+  primaryColor: string;
+}
+
+export const defaultWhiteLabelConfig: WhiteLabelConfig = {
+  platformName: 'TechJobs AI',
+  primaryColor: '#3b82f6',
+};
+
 interface AppState {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   
-  whiteLabelConfig: {
-    platformName: string;
-    primaryColor: string;
-    logoUrl: string;
-  };
-  setWhiteLabelConfig: (config: Partial<AppState['whiteLabelConfig']>) => void;
+  whiteLabelConfig: WhiteLabelConfig;
+  setWhiteLabelConfig: (config: Partial<WhiteLabelConfig>) => void;
 
   candidate: CandidateData | null;
   setCandidate: (data: CandidateData | null) => void;
@@ -30,11 +36,7 @@ export const useStore = create<AppState>()(
       theme: 'dark',
       setTheme: (theme) => set({ theme }),
       
-      whiteLabelConfig: {
-        platformName: 'TechJobs AI',
-        primaryColor: '#3b82f6',
-        logoUrl: '',
-      },
+      whiteLabelConfig: defaultWhiteLabelConfig,
       setWhiteLabelConfig: (config) => set((state) => ({ 
         whiteLabelConfig: { ...state.whiteLabelConfig, ...config } 
       })),

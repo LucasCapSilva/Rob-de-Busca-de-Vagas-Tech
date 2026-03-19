@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { UploadCloud, FileText, CheckCircle2, AlertCircle, Loader2, Briefcase } from 'lucide-react';
@@ -13,7 +13,6 @@ const Home = () => {
   const navigate = useNavigate();
   const { setCandidate, setMatchedJobs, whiteLabelConfig } = useStore();
   const [isDragging, setIsDragging] = useState(false);
-  const [_, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'uploading' | 'analyzing' | 'matching' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -34,7 +33,6 @@ const Home = () => {
       return;
     }
 
-    setFile(selectedFile);
     setStatus('uploading');
 
     try {
@@ -61,20 +59,21 @@ const Home = () => {
         navigate('/dashboard');
       }, 800);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Erro detalhado no processamento:', error);
       setStatus('error');
-      setErrorMsg(`Erro: ${error?.message || 'Falha ao processar o arquivo PDF.'}`);
+      const message = error instanceof Error ? error.message : 'Falha ao processar o arquivo PDF.';
+      setErrorMsg(`Erro: ${message}`);
     }
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       processFile(e.dataTransfer.files[0]);
     }
-  }, []);
+  };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
