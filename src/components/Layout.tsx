@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Briefcase, Settings, LayoutDashboard, Moon, Sun } from 'lucide-react';
+import { Briefcase, Settings, LayoutDashboard, Moon, Sun, Info } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { motion } from 'framer-motion';
 
@@ -26,6 +26,15 @@ const Layout = ({ children }: { children: React.ReactNode }) => {
           </Link>
 
           <nav className="flex items-center gap-6">
+            <Link 
+              to="/about"
+              className={`flex items-center gap-2 text-sm font-medium transition-colors ${
+                location.pathname === '/about' ? 'text-[var(--color-primary)]' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100'
+              }`}
+            >
+              <Info size={18} />
+              <span className="hidden sm:inline">Sobre</span>
+            </Link>
             <Link 
               to="/dashboard" 
               className={`flex items-center gap-2 text-sm font-medium transition-colors ${
