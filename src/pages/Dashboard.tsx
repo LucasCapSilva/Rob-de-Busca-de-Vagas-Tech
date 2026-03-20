@@ -1,22 +1,88 @@
-import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { useMemo, useRef, useState } from 'react';
 import { useStore } from '../store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, MapPin, Building2, Briefcase, Award, ChevronRight, Filter, AlertCircle, ExternalLink, CheckCircle2 } from 'lucide-react';
-import type { JobMatch } from '../utils/jobMatcher';
+import { Search, MapPin, Building2, Briefcase, Award, ChevronRight, Filter, AlertCircle, ExternalLink, CheckCircle2, UploadCloud, Loader2 } from 'lucide-react';
+import { calculateMatch, type JobMatch } from '../utils/jobMatcher';
+import { analyzeResumeText } from '../utils/resumeAnalyzer';
+import { extractTextFromPDF } from '../utils/pdfParser';
+import jobsData from '../data/jobs.json';
+import type { Job } from '../types';
+
+type ProcessingStatus = 'idle' | 'uploading' | 'analyzing' | 'matching' | 'success' | 'error';
 
 const Dashboard = () => {
-  const { candidate, matchedJobs } = useStore();
+  const { candidate, matchedJobs, setCandidate, setMatchedJobs, setIsProcessing } = useStore();
   const [selectedJob, setSelectedJob] = useState<JobMatch | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('Todos');
+  const [status, setStatus] = useState<ProcessingStatus>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [progress, setProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!candidate) {
-    return <Navigate to="/" replace />;
-  }
+  const processFile = async (selectedFile: File) => {
+    if (selectedFile.type !== 'application/pdf') {
+      setStatus('error');
+      setErrorMsg('Por favor, envie um arquivo PDF válido.');
+      return;
+    }
 
-  const topJobs = matchedJobs.slice(0, 10);
-  
+    setErrorMsg('');
+    setProgress(10);
+    setStatus('uploading');
+    setIsProcessing(true);
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      setProgress(30);
+      setStatus('analyzing');
+
+      const extractedText = await extractTextFromPDF(selectedFile);
+      const extractedCandidate = analyzeResumeText(extractedText);
+
+      if (!extractedCandidate.name || extractedCandidate.name.trim().length < 3) {
+        throw new Error('Não foi possível identificar o nome do candidato no currículo.');
+      }
+
+      if (extractedCandidate.skills.length === 0) {
+        throw new Error('Não encontramos skills técnicas no currículo. Tente um PDF com texto selecionável.');
+      }
+
+      setCandidate(extractedCandidate);
+      setProgress(70);
+      setStatus('matching');
+
+      const rankedMatches = calculateMatch(extractedCandidate, jobsData as Job[]);
+      if (rankedMatches.length === 0) {
+        throw new Error('Não foi possível encontrar vagas compatíveis para o perfil analisado.');
+      }
+
+      setMatchedJobs(rankedMatches);
+      setProgress(100);
+      setStatus('success');
+
+      setTimeout(() => {
+        setStatus('idle');
+        setProgress(0);
+      }, 1200);
+    } catch (error: unknown) {
+      setStatus('error');
+      const message = error instanceof Error ? error.message : 'Falha ao processar o arquivo PDF.';
+      setErrorMsg(message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      void processFile(e.target.files[0]);
+      e.target.value = '';
+    }
+  };
+
+  const topJobs = useMemo(() => matchedJobs.slice(0, 20), [matchedJobs]);
+
   const filteredJobs = topJobs.filter(job => {
     const matchesSearch = job.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
                           job.company.toLowerCase().includes(searchTerm.toLowerCase());
@@ -24,9 +90,77 @@ const Dashboard = () => {
     return matchesSearch && matchesType;
   });
 
+  if (!candidate) {
+    return (
+      <div className="max-w-3xl mx-auto py-10">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 sm:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white text-center mb-3">
+            Processamento inteligente de currículo
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 text-center mb-8">
+            Envie seu currículo em PDF para extrair perfil técnico e encontrar vagas por relevância.
+          </p>
+
+          <motion.label
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="block relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-colors border-gray-300 dark:border-gray-700 hover:border-[var(--color-primary)]"
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              onChange={handleFileInput}
+              disabled={status === 'uploading' || status === 'analyzing' || status === 'matching'}
+            />
+            <div className="flex flex-col items-center gap-3">
+              {status === 'idle' && (
+                <>
+                  <div className="p-3 rounded-full bg-blue-50 dark:bg-blue-900/20 text-[var(--color-primary)]">
+                    <UploadCloud size={36} />
+                  </div>
+                  <p className="font-semibold text-gray-900 dark:text-white">Clique para selecionar o PDF do currículo</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Apenas PDF com texto selecionável (máx 5MB)</p>
+                </>
+              )}
+              {(status === 'uploading' || status === 'analyzing' || status === 'matching') && (
+                <>
+                  <Loader2 size={36} className="animate-spin text-[var(--color-primary)]" />
+                  <p className="font-semibold text-gray-900 dark:text-white">
+                    {status === 'uploading' && 'Carregando arquivo...'}
+                    {status === 'analyzing' && 'Extraindo e validando informações...'}
+                    {status === 'matching' && 'Buscando vagas compatíveis...'}
+                  </p>
+                  <div className="w-full max-w-md h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-[var(--color-primary)] transition-all duration-300" style={{ width: `${progress}%` }} />
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{progress}% concluído</p>
+                </>
+              )}
+              {status === 'success' && (
+                <>
+                  <CheckCircle2 size={36} className="text-green-500" />
+                  <p className="font-semibold text-gray-900 dark:text-white">Currículo processado com sucesso.</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Perfil carregado no dashboard com as melhores vagas.</p>
+                </>
+              )}
+              {status === 'error' && (
+                <>
+                  <AlertCircle size={36} className="text-red-500" />
+                  <p className="font-semibold text-red-500">{errorMsg}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Tente novamente com outro PDF.</p>
+                </>
+              )}
+            </div>
+          </motion.label>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      {/* Left Column: Candidate Insights & Filters */}
       <div className="space-y-6">
         <motion.div 
           initial={{ opacity: 0, x: -20 }}
@@ -38,6 +172,10 @@ const Dashboard = () => {
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Nome</p>
               <p className="font-medium text-gray-900 dark:text-white">{candidate.name}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Anos de Experiência</p>
+              <p className="font-medium text-gray-900 dark:text-white">{candidate.yearsOfExperience} anos</p>
             </div>
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Senioridade Estimada</p>
@@ -71,6 +209,23 @@ const Dashboard = () => {
           <div className="flex items-center gap-2 mb-4">
             <Filter size={18} className="text-gray-500" />
             <h3 className="font-bold text-gray-900 dark:text-white">Filtros</h3>
+          </div>
+
+          <div className="mb-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handleFileInput}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={status === 'uploading' || status === 'analyzing' || status === 'matching'}
+              className="w-full py-2.5 px-4 rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Reprocessar currículo PDF
+            </button>
           </div>
           
           <div className="space-y-4">
@@ -109,8 +264,29 @@ const Dashboard = () => {
         </motion.div>
       </div>
 
-      {/* Right Column: Job List & Details */}
       <div className="lg:col-span-2">
+        {(status === 'uploading' || status === 'analyzing' || status === 'matching') && (
+          <div className="mb-5 rounded-xl border border-blue-100 dark:border-blue-900/30 bg-blue-50 dark:bg-blue-900/20 p-4">
+            <div className="flex items-center gap-3 mb-2">
+              <Loader2 className="animate-spin text-[var(--color-primary)]" size={18} />
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-300">
+                {status === 'uploading' && 'Carregando currículo...'}
+                {status === 'analyzing' && 'Extraindo nome, senioridade e skills...'}
+                {status === 'matching' && 'Ordenando melhores oportunidades por relevância...'}
+              </p>
+            </div>
+            <div className="h-2 rounded-full bg-blue-100 dark:bg-blue-900/40 overflow-hidden">
+              <div className="h-full bg-[var(--color-primary)] transition-all duration-300" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        )}
+        {status === 'error' && (
+          <div className="mb-5 rounded-xl border border-red-100 dark:border-red-900/30 bg-red-50 dark:bg-red-900/20 p-4 flex items-start gap-2">
+            <AlertCircle className="text-red-500 mt-0.5" size={18} />
+            <p className="text-sm text-red-700 dark:text-red-300">{errorMsg}</p>
+          </div>
+        )}
+
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             Vagas Recomendadas <span className="text-[var(--color-primary)]">({filteredJobs.length})</span>
@@ -189,7 +365,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Job Details Modal/Sidebar */}
       <AnimatePresence>
         {selectedJob && (
           <>
